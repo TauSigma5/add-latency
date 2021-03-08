@@ -1,13 +1,14 @@
 package main
 
 import (
-	"bufio"
+	//"bufio"
 	"fmt"
 	"os"
 	"os/exec"
 	"strconv"
-	"strings"
 
+	//"strconv"
+	//"strings"
 	"github.com/go-ping/ping"
 )
 
@@ -17,50 +18,38 @@ func getLatency() int64 {
 		panic(err)
 	}
 	pinger.Count = 5
+
+	fmt.Println("Finding your current latency.")
+	pinger.SetPrivileged(true)
 	err = pinger.Run() // Blocks until finished.
 	if err != nil {
 		panic(err)
 	}
 	stats := pinger.Statistics()
-	fmt.Printf("\nAverage Latency: %v \nStandard Deviation: %v\n", stats.AvgRtt, stats.StdDevRtt)
 
 	return stats.AvgRtt.Microseconds()
 }
 
-func determineLatency() int {
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("Please enter desired latency to achieve in milliseconds: ")
-	text, _ := reader.ReadString('\n')
-	text = strings.TrimSpace(text)
-	desiredLatency, err := strconv.Atoi(text)
+func determineLatency(desiredLatency string) int {
+	// Latency in milliseconds
+	latency, _ := strconv.Atoi(desiredLatency)
 
-	if err != nil {
-		panic("Invalid latency")
-	}
-
-	fmt.Println("Finding your current latency.")
 	currentLatency := getLatency()
 
-	return int(float64(desiredLatency) - float64(currentLatency)/1000.0)
+	fmt.Println("Found latency")
+	latencyToAdd := int(float64(latency) - float64(currentLatency)/1000.0)
+
+	if latencyToAdd > 0 {
+		return latencyToAdd
+	}
+
+	return 0
 }
 
-func windowsAddLatency() {
-	// Implement later
-}
-
-func darwinAddLatency() {
-	// Implement Later
-}
-
-func linuxAddLatency() {
-	// Use tc command locally installed.
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("Please enter name of network adapter: ")
-	text, _ := reader.ReadString('\n')
-	netAdapter := strings.TrimSpace(text)
+func linuxAddLatency(latency string, jitter string, loss string) {
 	//command := fmt.Sprintf("qdisc add dev " + netAdapter + " root netem delay " + fmt.Sprint(determineLatency()) + "ms")
-
-	cmd := exec.Command("/usr/sbin/tc", "qdisc", "add", "dev", netAdapter, "root", "netem", "delay", fmt.Sprint(determineLatency())+"ms")
+	cmd := exec.Command("/usr/sbin/tc", "qdisc", "add", "dev", "enp10s0", "root", "netem", "delay", fmt.Sprint(determineLatency(latency))+"ms", jitter+"ms", loss+"%")
+	fmt.Println(cmd)
 	err := cmd.Run()
 
 	if err != nil {
@@ -69,15 +58,8 @@ func linuxAddLatency() {
 }
 
 func main() {
-	var os string
-
-	// Runs the correct add latency command for the platform
-	// depending on the build flags.
-	if os == "windows" {
-		windowsAddLatency()
-	} else if os == "darwin" {
-		darwinAddLatency()
-	} else {
-		linuxAddLatency()
-	}
+	latency := string(os.Args[1])
+	jitter := string(os.Args[2])
+	loss := string(os.Args[3])
+	linuxAddLatency(latency, jitter, loss)
 }
